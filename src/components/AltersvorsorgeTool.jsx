@@ -1,7 +1,33 @@
-import React, { useState } from 'react';
-import { CircleDollarSign, Lightbulb, ArrowRight, ChevronDown, ChevronUp, PieChart, BarChart3, Building, Home, Calculator, CheckCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { 
+  CircleDollarSign, 
+  Lightbulb, 
+  ArrowRight, 
+  ChevronDown, 
+  ChevronUp, 
+  PieChart, 
+  BarChart3, 
+  Building, 
+  Home, 
+  Calculator, 
+  CheckCircle,
+  HelpCircle,
+  AlertCircle
+} from 'lucide-react';
 
 const AltersvorsorgeTool = () => {
+  // Refs für die Formularvalidierung
+  const formRefs = {
+    versicherungsArt: useRef(),
+    rentenHöhe: useRef(),
+    etfSparplanBetrag: useRef(),
+    immobilienWert: useRef(),
+    jährlicheEinkünfte: useRef(),
+    monatlicheRücklage: useRef(),
+    geschätzteRente: useRef(),
+    gewünschtesEinkommen: useRef()
+  };
+
   // State für den aktuellen Schritt im Formular
   const [currentStep, setCurrentStep] = useState(0);
   const [formCompleted, setFormCompleted] = useState(false);
@@ -13,6 +39,12 @@ const AltersvorsorgeTool = () => {
     einnahmen: false,
     rentenlücke: false
   });
+
+  // State für Tooltip-Anzeige
+  const [activeTooltip, setActiveTooltip] = useState(null);
+
+  // State für Formularfehler
+  const [errors, setErrors] = useState({});
 
   // Form-State
   const [formData, setFormData] = useState({
@@ -56,6 +88,35 @@ const AltersvorsorgeTool = () => {
     benötigtesKapital: 0
   });
 
+  // Tooltip-Inhalte
+  const tooltips = {
+    versicherungsArt: "Gibt an, ob Sie in die gesetzliche Rentenversicherung einzahlen und in welcher Form.",
+    rentenHöhe: "Die bisher von Ihnen erworbene monatliche Rente laut Ihrer Renteninformation der Deutschen Rentenversicherung.",
+    freiwilligeEinzahlung: "Selbständige können freiwillig in die gesetzliche Rentenversicherung einzahlen, um Rentenansprüche zu erwerben.",
+    privateRente: "Private Rentenversicherungen sind Vorsorgeverträge, die eine lebenslange Rente im Alter garantieren.",
+    privateRenteVerzinsung: "Der garantierte Zinssatz, mit dem Ihr Kapital in der privaten Rentenversicherung verzinst wird.",
+    privateRenteKosten: "Die jährlichen Verwaltungs- und Abschlusskosten der privaten Rentenversicherung in Prozent.",
+    etfSparpläne: "ETF-Sparpläne investieren regelmäßig in börsengehandelte Indexfonds und bieten Renditechancen bei höherem Risiko.",
+    etfSparplanBetrag: "Der monatliche Betrag, den Sie in ETF- oder Fondssparpläne investieren.",
+    rürupRente: "Die Basisrente (Rürup) ist eine staatlich geförderte private Altersvorsorge für Selbständige mit steuerlichen Vorteilen.",
+    riesterRente: "Die Riester-Rente ist eine staatlich geförderte private Altersvorsorge mit Zulagen und Steuervorteilen.",
+    direktversicherung: "Eine Direktversicherung ist eine betriebliche Altersvorsorge, die der Arbeitgeber für den Arbeitnehmer abschließt.",
+    unterstützungskasse: "Die Unterstützungskasse ist eine Form der betrieblichen Altersvorsorge für Geschäftsführer oder leitende Angestellte.",
+    pensionskasse: "Eine Pensionskasse ist ein Versorgungswerk, das Betriebsrenten für die Mitarbeiter von Unternehmen verwaltet.",
+    versorgungswerk: "Versorgungswerke sind berufsständische Organisationen, die die Altersvorsorge für bestimmte Berufsgruppen übernehmen.",
+    wohneigentum: "Selbstgenutztes Wohneigentum kann im Alter für Mietersparnis sorgen und das verfügbare Einkommen erhöhen.",
+    vermietet: "Vermietete Immobilien können im Alter einen zusätzlichen Einkommensstrom generieren.",
+    immobilienWert: "Der aktuelle Marktwert Ihrer Immobilien, basierend auf vergleichbaren Objekten in Ihrer Region.",
+    kredite: "Die Summe aller noch offenen Immobilienkredite und Hypotheken.",
+    mietrendite: "Die jährliche Rendite Ihrer vermieteten Immobilien, berechnet als (Jahresmiete - Kosten) / Immobilienwert * 100.",
+    jährlicheEinkünfte: "Ihr zu versteuerndes Jahreseinkommen vor Steuern und Abgaben.",
+    monatlicheRücklage: "Der Betrag, den Sie monatlich für Ihre Altersvorsorge zurücklegen.",
+    steuerAbsetzung: "Altersvorsorgeprodukte, die Sie steuerlich geltend machen können, um Ihre Steuerlast zu reduzieren.",
+    höchstbeträgeAusgeschöpft: "Sie können jährlich bis zu 27.566 € (Ledige) bzw. 55.132 € (Verheiratete) für Basisrente oder freiwillige DRV-Beiträge steuerlich absetzen.",
+    geschätzteRente: "Die voraussichtliche monatliche Rente aus allen Ihren Vorsorgebausteinen (gesetzlich, privat, betrieblich).",
+    gewünschtesEinkommen: "Das monatliche Nettoeinkommen, das Sie im Ruhestand zur Verfügung haben möchten."
+  };
+
   // Berechnung der Gesamtrente und Rentenlücke
   const calculateRetirementGap = () => {
     const monatlicheRente = parseFloat(formData.geschätzteRente) || 0;
@@ -71,13 +132,95 @@ const AltersvorsorgeTool = () => {
     });
   };
 
+  // Formular-Validierung
+  const validateForm = (step) => {
+    const newErrors = {};
+    let isValid = true;
+
+    // Validierungsregeln entsprechend des aktuellen Schritts
+    if (step === 0) {
+      if (formData.versicherungsArt === '') {
+        newErrors.versicherungsArt = 'Bitte wählen Sie die Art der Versicherung aus';
+        isValid = false;
+      }
+
+      if (formData.privateRente && (formData.privateRenteVerzinsung === '' || isNaN(parseFloat(formData.privateRenteVerzinsung)))) {
+        newErrors.privateRenteVerzinsung = 'Bitte geben Sie einen gültigen Prozentsatz ein';
+        isValid = false;
+      }
+
+      if (formData.etfSparpläne && (formData.etfSparplanBetrag === '' || isNaN(parseFloat(formData.etfSparplanBetrag)))) {
+        newErrors.etfSparplanBetrag = 'Bitte geben Sie einen gültigen Betrag ein';
+        isValid = false;
+      }
+
+      if ((formData.wohneigentum || formData.vermietet) && (formData.immobilienWert === '' || isNaN(parseFloat(formData.immobilienWert)))) {
+        newErrors.immobilienWert = 'Bitte geben Sie einen gültigen Immobilienwert ein';
+        isValid = false;
+      }
+    } else if (step === 1) {
+      if (formData.jährlicheEinkünfte === '' || isNaN(parseFloat(formData.jährlicheEinkünfte))) {
+        newErrors.jährlicheEinkünfte = 'Bitte geben Sie Ihre jährlichen Einkünfte an';
+        isValid = false;
+      }
+
+      if (formData.monatlicheRücklage === '' || isNaN(parseFloat(formData.monatlicheRücklage))) {
+        newErrors.monatlicheRücklage = 'Bitte geben Sie Ihre monatliche Rücklage an';
+        isValid = false;
+      }
+    } else if (step === 2) {
+      if (formData.geschätzteRente === '' || isNaN(parseFloat(formData.geschätzteRente))) {
+        newErrors.geschätzteRente = 'Bitte geben Sie Ihre geschätzte monatliche Rente an';
+        isValid = false;
+      }
+
+      if (formData.gewünschtesEinkommen === '' || isNaN(parseFloat(formData.gewünschtesEinkommen))) {
+        newErrors.gewünschtesEinkommen = 'Bitte geben Sie Ihr gewünschtes Einkommen im Alter an';
+        isValid = false;
+      }
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
   // Handler für Form-Änderungen
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value
-    });
+    
+    // Bei numerischen Feldern: Sicherstellen, dass nur Zahlen und Dezimalpunkte eingegeben werden
+    if (type === 'number' && value !== '') {
+      const numericValue = value.replace(/[^0-9.]/g, '');
+      
+      setFormData({
+        ...formData,
+        [name]: numericValue
+      });
+      
+      // Entferne Fehler für dieses Feld, wenn es gültig ist
+      if (errors[name] && !isNaN(parseFloat(numericValue))) {
+        const updatedErrors = { ...errors };
+        delete updatedErrors[name];
+        setErrors(updatedErrors);
+      }
+    } else {
+      setFormData({
+        ...formData,
+        [name]: type === 'checkbox' ? checked : value
+      });
+      
+      // Entferne Fehler für dieses Feld, wenn es gültig ist
+      if (errors[name] && value !== '') {
+        const updatedErrors = { ...errors };
+        delete updatedErrors[name];
+        setErrors(updatedErrors);
+      }
+    }
+  };
+
+  // Toggle für Tooltip
+  const toggleTooltip = (fieldName) => {
+    setActiveTooltip(activeTooltip === fieldName ? null : fieldName);
   };
 
   // Toggle für expandierte Sektionen
@@ -91,7 +234,17 @@ const AltersvorsorgeTool = () => {
   // Form-Submit-Handler
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (currentStep < 3) {
+    
+    if (!validateForm(currentStep)) {
+      // Scrolle zum ersten Fehler
+      const errorField = Object.keys(errors)[0];
+      if (errorField && formRefs[errorField]) {
+        formRefs[errorField].current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+    
+    if (currentStep < 2) {
       setCurrentStep(currentStep + 1);
     } else {
       calculateRetirementGap();
@@ -127,7 +280,7 @@ const AltersvorsorgeTool = () => {
               {formData.rentenHöhe && (
                 <li className="flex items-start">
                   <CheckCircle className="text-green-500 mr-2 mt-1 flex-shrink-0" size={16} />
-                  <span>Erworbene Rente: {formData.rentenHöhe} €/Monat</span>
+                  <span>Erworbene Rente: {parseFloat(formData.rentenHöhe).toLocaleString('de-DE')} €/Monat</span>
                 </li>
               )}
               {formData.privateRente && (
@@ -136,10 +289,10 @@ const AltersvorsorgeTool = () => {
                   <span>Private Rentenversicherung</span>
                 </li>
               )}
-              {formData.etfSparpläne && (
+              {formData.etfSparpläne && formData.etfSparplanBetrag && (
                 <li className="flex items-start">
                   <CheckCircle className="text-green-500 mr-2 mt-1 flex-shrink-0" size={16} />
-                  <span>ETF-/Fondssparpläne: {formData.etfSparplanBetrag} €/Monat</span>
+                  <span>ETF-/Fondssparpläne: {parseFloat(formData.etfSparplanBetrag).toLocaleString('de-DE')} €/Monat</span>
                 </li>
               )}
               {formData.rürupRente && (
@@ -160,10 +313,10 @@ const AltersvorsorgeTool = () => {
                   <span>Betriebliche Altersvorsorge</span>
                 </li>
               )}
-              {(formData.wohneigentum || formData.vermietet) && (
+              {(formData.wohneigentum || formData.vermietet) && formData.immobilienWert && (
                 <li className="flex items-start">
                   <CheckCircle className="text-green-500 mr-2 mt-1 flex-shrink-0" size={16} />
-                  <span>Immobilienvermögen: {formData.immobilienWert} €</span>
+                  <span>Immobilienvermögen: {parseFloat(formData.immobilienWert).toLocaleString('de-DE')} €</span>
                 </li>
               )}
             </ul>
@@ -175,8 +328,8 @@ const AltersvorsorgeTool = () => {
               Rentenlücke
             </h3>
             <div className="space-y-4">
-              <p><span className="font-medium">Geschätzte monatliche Rente:</span> {formData.geschätzteRente} €</p>
-              <p><span className="font-medium">Gewünschtes Einkommen:</span> {formData.gewünschtesEinkommen} €</p>
+              <p><span className="font-medium">Geschätzte monatliche Rente:</span> {parseFloat(formData.geschätzteRente).toLocaleString('de-DE')} €</p>
+              <p><span className="font-medium">Gewünschtes Einkommen:</span> {parseFloat(formData.gewünschtesEinkommen).toLocaleString('de-DE')} €</p>
               <p className="text-orange-600 font-bold">Monatliche Rentenlücke: {formData.rentenlücke.toLocaleString('de-DE')} €</p>
               <p className="text-orange-600 font-bold">Benötigtes Kapital: {formData.benötigtesKapital.toLocaleString('de-DE')} €</p>
             </div>
@@ -253,7 +406,7 @@ const AltersvorsorgeTool = () => {
                 <span>Nutzen Sie steuerliche Vorteile durch Rürup-Rente oder freiwillige Einzahlungen in die DRV (bis zu 27.566 € bei Ledigen, 55.132 € bei Verheirateten in 2024).</span>
               </li>
             )}
-            {parseFloat(formData.monatlicheRücklage) / (parseFloat(formData.jährlicheEinkünfte) / 12) < 0.1 && formData.monatlicheRücklage && formData.jährlicheEinkünfte && (
+            {parseFloat(formData.monatlicheRücklage || 0) / (parseFloat(formData.jährlicheEinkünfte || 1) / 12) < 0.1 && formData.monatlicheRücklage && formData.jährlicheEinkünfte && (
               <li className="flex items-start">
                 <ArrowRight className="text-orange-600 mr-2 mt-1 flex-shrink-0" size={16} />
                 <span>Erhöhen Sie Ihre Sparquote auf mindestens 10-15% Ihres Einkommens für eine ausreichende Altersvorsorge.</span>
@@ -276,6 +429,7 @@ const AltersvorsorgeTool = () => {
           onClick={() => {
             setFormCompleted(false);
             setCurrentStep(0);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className="mt-8 bg-blue-900 text-white px-6 py-2 rounded-md font-medium hover:bg-blue-950 transition-colors"
         >
@@ -335,31 +489,56 @@ const AltersvorsorgeTool = () => {
     );
   };
 
-  // Rendert ein Formular-Feld mit Label
+  // Rendert ein Formular-Feld mit Label und Tooltip
   const renderFormField = (label, name, type = 'text', options = {}) => {
     const { placeholder, min, step, choices, helpText } = options;
+    const hasError = errors[name];
     
     return (
-      <div className="mb-4">
-        <label className="block text-gray-700 mb-1 font-medium" htmlFor={name}>
-          {label}
-        </label>
+      <div className="mb-4" ref={formRefs[name]}>
+        <div className="flex items-center mb-1">
+          <label className="block text-gray-700 font-medium" htmlFor={name}>
+            {label}
+          </label>
+          {tooltips[name] && (
+            <div className="relative ml-2">
+              <HelpCircle
+                size={16}
+                className="text-blue-900 cursor-help"
+                onMouseEnter={() => toggleTooltip(name)}
+                onMouseLeave={() => toggleTooltip(null)}
+              />
+              {activeTooltip === name && (
+                <div className="absolute z-10 left-6 top-0 p-2 bg-blue-900 text-white text-sm rounded shadow-lg w-64">
+                  {tooltips[name]}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         
         {type === 'select' ? (
-          <select
-            id={name}
-            name={name}
-            value={formData[name]}
-            onChange={handleInputChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-900 focus:border-transparent"
-          >
-            <option value="">Bitte wählen</option>
-            {choices.map((choice) => (
-              <option key={choice.value} value={choice.value}>
-                {choice.label}
-              </option>
-            ))}
-          </select>
+          <div>
+            <select
+              id={name}
+              name={name}
+              value={formData[name]}
+              onChange={handleInputChange}
+              className={`w-full px-3 py-2 border ${hasError ? 'border-red-500' : 'border-gray-300'} rounded focus:outline-none focus:ring-2 ${hasError ? 'focus:ring-red-500' : 'focus:ring-blue-900'} focus:border-transparent`}
+            >
+              <option value="">Bitte wählen</option>
+              {choices.map((choice) => (
+                <option key={choice.value} value={choice.value}>
+                  {choice.label}
+                </option>
+              ))}
+            </select>
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1 flex items-center">
+                <AlertCircle size={12} className="mr-1" /> {errors[name]}
+              </p>
+            )}
+          </div>
         ) : type === 'checkbox' ? (
           <div className="flex items-center">
             <input
@@ -373,20 +552,27 @@ const AltersvorsorgeTool = () => {
             <label htmlFor={name} className="text-gray-700">{label}</label>
           </div>
         ) : (
-          <input
-            type={type}
-            id={name}
-            name={name}
-            value={formData[name]}
-            onChange={handleInputChange}
-            placeholder={placeholder}
-            min={min}
-            step={step}
-            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-900 focus:border-transparent"
-          />
+          <div>
+            <input
+              type={type}
+              id={name}
+              name={name}
+              value={formData[name]}
+              onChange={handleInputChange}
+              placeholder={placeholder}
+              min={min}
+              step={step}
+              className={`w-full px-3 py-2 border ${hasError ? 'border-red-500' : 'border-gray-300'} rounded focus:outline-none focus:ring-2 ${hasError ? 'focus:ring-red-500' : 'focus:ring-blue-900'} focus:border-transparent`}
+            />
+            {hasError && (
+              <p className="text-red-500 text-xs mt-1 flex items-center">
+                <AlertCircle size={12} className="mr-1" /> {errors[name]}
+              </p>
+            )}
+          </div>
         )}
         
-        {helpText && (
+        {helpText && !hasError && (
           <p className="text-sm text-gray-500 mt-1">{helpText}</p>
         )}
       </div>
@@ -415,7 +601,8 @@ const AltersvorsorgeTool = () => {
                 { value: 'Pflichtversichert', label: 'Pflichtversichert' },
                 { value: 'Freiwillig versichert', label: 'Freiwillig versichert' },
                 { value: 'Nicht versichert', label: 'Nicht versichert' }
-              ]
+              ],
+              helpText: 'Pflichtversichert = z.B. als Handwerker, freiwillig = eigene Einzahlung, nicht versichert = keine Beiträge'
             })}
             
             {renderFormField('Bisher erworbene Rente (€/Monat)', 'rentenHöhe', 'number', {
@@ -456,13 +643,15 @@ const AltersvorsorgeTool = () => {
                 {renderFormField('Garantierte Verzinsung (%)', 'privateRenteVerzinsung', 'number', {
                   placeholder: '0',
                   min: 0,
-                  step: 0.1
+                  step: 0.1,
+                  helpText: 'Der in Ihrem Vertrag garantierte Zinssatz (meist zwischen 0,25% und 3,5%)'
                 })}
                 
                 {renderFormField('Jährliche Kosten (%)', 'privateRenteKosten', 'number', {
                   placeholder: '0',
                   min: 0,
-                  step: 0.1
+                  step: 0.1,
+                  helpText: 'Gesamtkosten inkl. Abschluss- und Verwaltungskosten (meist zwischen 1,5% und 3%)'
                 })}
               </>
             )}
@@ -473,7 +662,8 @@ const AltersvorsorgeTool = () => {
               renderFormField('Monatlicher Sparbetrag (€)', 'etfSparplanBetrag', 'number', {
                 placeholder: '0',
                 min: 0,
-                step: 10
+                step: 10,
+                helpText: 'Gesamtbetrag aller regelmäßigen Sparplanraten'
               })
             )}
             
@@ -504,10 +694,18 @@ const AltersvorsorgeTool = () => {
           <div className="p-4 border border-gray-200 rounded-lg">
             <p className="text-sm text-gray-600 mb-4">Falls relevant für Ihre Situation als Selbständige/r:</p>
             
-            {renderFormField('Direktversicherung über eigene Firma', 'direktversicherung', 'checkbox')}
-            {renderFormField('Unterstützungskasse über eigene Firma', 'unterstützungskasse', 'checkbox')}
-            {renderFormField('Pensionskasse', 'pensionskasse', 'checkbox')}
-            {renderFormField('Versorgungswerk', 'versorgungswerk', 'checkbox')}
+            {renderFormField('Direktversicherung über eigene Firma', 'direktversicherung', 'checkbox', {
+              helpText: 'Eine Lebensversicherung, die über Ihre GmbH oder UG abgeschlossen wurde'
+            })}
+            {renderFormField('Unterstützungskasse über eigene Firma', 'unterstützungskasse', 'checkbox', {
+              helpText: 'Eine Versorgungseinrichtung für Geschäftsführer oder leitende Angestellte'
+            })}
+            {renderFormField('Pensionskasse', 'pensionskasse', 'checkbox', {
+              helpText: 'Mitglied in einer branchenspezifischen Pensionskasse'
+            })}
+            {renderFormField('Versorgungswerk', 'versorgungswerk', 'checkbox', {
+              helpText: 'Mitglied in einem berufsständischen Versorgungswerk (z.B. für Ärzte, Rechtsanwälte)'
+            })}
           </div>
         )}
       </div>
@@ -531,21 +729,27 @@ const AltersvorsorgeTool = () => {
         
         {expandedSections.immobilien && (
           <div className="p-4 border border-gray-200 rounded-lg">
-            {renderFormField('Selbstgenutztes Wohneigentum vorhanden', 'wohneigentum', 'checkbox')}
-            {renderFormField('Vermietete Immobilien vorhanden', 'vermietet', 'checkbox')}
+            {renderFormField('Selbstgenutztes Wohneigentum vorhanden', 'wohneigentum', 'checkbox', {
+              helpText: 'Eigene Immobilie, in der Sie selbst wohnen'
+            })}
+            {renderFormField('Vermietete Immobilien vorhanden', 'vermietet', 'checkbox', {
+              helpText: 'Immobilien, die Sie zur Kapitalanlage vermieten'
+            })}
             
             {(formData.wohneigentum || formData.vermietet) && (
               <>
                 {renderFormField('Geschätzter Gesamtwert der Immobilien (€)', 'immobilienWert', 'number', {
                   placeholder: '0',
                   min: 0,
-                  step: 10000
+                  step: 10000,
+                  helpText: 'Aktueller Marktwert aller Immobilien zusammen'
                 })}
                 
                 {renderFormField('Höhe der laufenden Kredite (€)', 'kredite', 'number', {
                   placeholder: '0',
                   min: 0,
-                  step: 10000
+                  step: 10000,
+                  helpText: 'Summe aller noch ausstehenden Immobilienkredite'
                 })}
                 
                 {formData.vermietet && (
@@ -553,7 +757,8 @@ const AltersvorsorgeTool = () => {
                     placeholder: '0',
                     min: 0,
                     max: 15,
-                    step: 0.1
+                    step: 0.1,
+                    helpText: 'Jährliche Nettomieteinnahmen geteilt durch Immobilienwert mal 100'
                   })
                 )}
               </>
@@ -596,9 +801,24 @@ const AltersvorsorgeTool = () => {
             })}
             
             <div className="mb-4">
-              <label className="block text-gray-700 mb-1 font-medium">
-                Steuerlich absetzbare Altersvorsorge (Mehrfachauswahl möglich)
-              </label>
+              <div className="flex items-center mb-1">
+                <label className="block text-gray-700 font-medium">
+                  Steuerlich absetzbare Altersvorsorge
+                </label>
+                <div className="relative ml-2">
+                  <HelpCircle
+                    size={16}
+                    className="text-blue-900 cursor-help"
+                    onMouseEnter={() => toggleTooltip('steuerAbsetzung')}
+                    onMouseLeave={() => toggleTooltip(null)}
+                  />
+                  {activeTooltip === 'steuerAbsetzung' && (
+                    <div className="absolute z-10 left-6 top-0 p-2 bg-blue-900 text-white text-sm rounded shadow-lg w-64">
+                      Altersvorsorgeprodukte, die Sie steuerlich geltend machen können, um Ihre Steuerlast zu reduzieren.
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="space-y-2">
                 {['Rürup-Rente', 'Freiwillige DRV-Einzahlungen', 'Betriebliche Altersvorsorge', 'Private Rentenversicherung'].map((option) => (
                   <div key={option} className="flex items-center">
@@ -663,7 +883,8 @@ const AltersvorsorgeTool = () => {
             {renderFormField('Gewünschtes monatliches Netto-Einkommen im Alter (€)', 'gewünschtesEinkommen', 'number', {
               placeholder: '0',
               min: 0,
-              step: 100
+              step: 100,
+              helpText: 'Betrag, den Sie monatlich im Ruhestand zur Verfügung haben möchten'
             })}
             
             <div className="mt-4 p-4 bg-blue-50 rounded">
